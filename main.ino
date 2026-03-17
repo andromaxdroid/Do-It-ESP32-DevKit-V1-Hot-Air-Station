@@ -7,8 +7,7 @@
  * ac dimmer triacs-zero crossing detection, and a PID controller for maintaining the desired temperature.
  * dc pwm module for controlling the fan speed
  * eeprom for storing user settings and calibration data
- * Author: thian gani(andromax)
- * Date: 2026-03-14
+ * Author: thian gani
  * Date: 2026-03-14
  * original code from youtube channel: sasiskas (for atmega328p)
  */
@@ -29,14 +28,14 @@ const uint16_t temp_ambC = 25;                // Average ambient temperature
 const uint16_t temp_tip[3] = {200, 300, 400}; // Temperature reference points for calibration
 const uint16_t min_working_fan = 0;           // Minimal possible fan speed
 
-const uint8_t AC_SYNC_PIN = 32;  // Hot gun heater management pin
-const uint8_t HOT_GUN_PIN = 23;  // Outlet 220 v synchronization pin. Do not change!
+const uint8_t AC_SYNC_PIN = 32;  // Hot gun heater management pin (AC dimmer triacs-zero crossing detection). Do not change!
+const uint8_t HOT_GUN_PIN = 23;  // Outlet 220 v synchronization pin. Do not change! (DIMMER pin)
 const uint8_t FAN_GUN_PIN = 33;  // Hot gun fan management pin. Do not change!
 const uint8_t TEMP_GUN_PIN = 35; // Hot gun temperature checking pin
 
 // rotary encoder
-const uint8_t R_MAIN_PIN = 14; // Rotary encoder main pin. Do not change! (clk pin)
-const uint8_t R_SECD_PIN = 13; // Rotary encoder secondary pin (dt pin)
+const uint8_t R_MAIN_PIN = 13; // Rotary encoder main pin. Do not change! (clk pin)
+const uint8_t R_SECD_PIN = 14; // Rotary encoder secondary pin (dt pin)
 const uint8_t R_BUTN_PIN = 12; // Rotary encoder button pin (switch pin)
 
 const uint8_t REED_SW_PIN = 18;  // Reed switch pin
@@ -47,7 +46,8 @@ const bool BUZZER_ACTIVE = true; // Active buzzer beeps when +5v supplied to it
  * The channels are used to save preset temperature and fan speed values. When the user presses the button of the channel, the preset temperature and fan speed values will be applied. The channel buttons are connected to the ground, so they are active LOW. Do not change these pin numbers!
  * long press the channel button to save the current temperature and fan speed settings into the channel
  * short press the button of the channel to load  & apply the preset temperature and fan speed values of the channel
- * notes : you must be save the preset values into the channel before using it, otherwise the channel will not work
+ * notes : you must be save the preset values into the channel before using it, otherwise the channel will not work, because the default values of the channels are 0, which is out of the working range of the hot gun. To save the preset values into the channel, long press the channel button until you hear a beep sound, then release the button. After that, you can short press the button to load and apply the preset values of the channel.
+ */
 const uint8_t CH1_pin = 27;
 const uint8_t CH2_pin = 26;
 const uint8_t CH3_pin = 25;
@@ -73,6 +73,7 @@ struct cfg
   uint8_t ch_fan[3];    // Fan speeds for channels 1,2,3
 };
 
+// ================= CLASS =================
 class CONFIG
 {
 public:
@@ -83,17 +84,17 @@ public:
     rAddr = wAddr = 0;
     eLength = 0;
     nextRecID = 0;
-    uint8_t rs = sizeof(struct cfg) + 5; // The total config record size
-    // Select appropriate record size; The record size should be power of 2, i.e. 8, 16, 32, 64, ... bytes
-    for (record_size = 8; record_size < rs; record_size <<= 1)
-      ;
+
+    uint8_t rs = sizeof(struct cfg) + 5;
+    for (record_size = 8; record_size < rs; record_size <<= 1);
   }
+
   void init();
   bool load(void);
-  void getConfig(struct cfg &Cfg);    // Copy config structure from this class
-  void updateConfig(struct cfg &Cfg); // Copy updated config into this class
-  bool save(void);                    // Save current config copy to the EEPROM
-  bool saveConfig(struct cfg &Cfg);   // write updated config into the EEPROM
+  void getConfig(struct cfg &Cfg);
+  void updateConfig(struct cfg &Cfg);
+  bool save(void);
+  bool saveConfig(struct cfg &Cfg);
   void getChannel(uint8_t ch, uint16_t &temp, uint8_t &fan);
   void setChannel(uint8_t ch, uint16_t temp, uint8_t fan);
 
@@ -102,18 +103,21 @@ protected:
 
 private:
   bool readRecord(uint16_t addr, uint32_t &recID);
-  bool can_write;      // The flag indicates that data can be saved
-  uint8_t buffRecords; // Number of the records in the outpt buffer
-  uint16_t rAddr;      // Address of thecorrect record in EEPROM to be read
-  uint16_t wAddr;      // Address in the EEPROM to start write new record
-  uint16_t eLength;    // Length of the EEPROM, depends on arduino model
-  uint32_t nextRecID;  // next record ID
-  uint8_t record_size; // The size of one record in bytes
+
+  bool can_write;
+  uint8_t buffRecords;
+  uint16_t rAddr;
+  uint16_t wAddr;
+  uint16_t eLength;
+  uint32_t nextRecID;
+  uint8_t record_size;
 };
 
-// Read the records until the last one, point wAddr (write address) after the last record
+// ================= INIT =================
 void CONFIG::init()
 {
+  EEPROM.begin(512); // WAJIB ESP32
+
   eLength = EEPROM.length();
   uint32_t recID;
   uint32_t minRecID = 0xffffffff;
@@ -124,17 +128,18 @@ void CONFIG::init()
 
   nextRecID = 0;
 
-  // read all the records in the EEPROM find min and max record ID
   for (uint16_t addr = 0; addr < eLength; addr += record_size)
   {
     if (readRecord(addr, recID))
     {
       ++records;
+
       if (minRecID > recID)
       {
         minRecID = recID;
         minRecAddr = addr;
       }
+
       if (maxRecID < recID)
       {
         maxRecID = recID;
@@ -155,19 +160,23 @@ void CONFIG::init()
   }
 
   rAddr = maxRecAddr;
+
   if (records < (eLength / record_size))
-  { // The EEPROM is not full
+  {
     wAddr = rAddr + record_size;
-    if (wAddr > eLength)
+
+    if (wAddr >= eLength) // FIX BUG
       wAddr = 0;
   }
   else
   {
     wAddr = minRecAddr;
   }
+
   can_write = true;
 }
 
+// ================= GET / UPDATE =================
 void CONFIG::getConfig(struct cfg &Cfg)
 {
   memcpy(&Cfg, &Config, sizeof(struct cfg));
@@ -184,16 +193,20 @@ bool CONFIG::saveConfig(struct cfg &Cfg)
   return save();
 }
 
+// ================= SAVE =================
 bool CONFIG::save(void)
 {
   if (!can_write)
-    return can_write;
+    return false;
+
   if (nextRecID == 0)
     nextRecID = 1;
 
   uint16_t startWrite = wAddr;
   uint32_t nxt = nextRecID;
   uint8_t summ = 0;
+
+  // write recID
   for (uint8_t i = 0; i < 4; ++i)
   {
     EEPROM.write(startWrite++, nxt & 0xff);
@@ -201,66 +214,84 @@ bool CONFIG::save(void)
     summ += nxt;
     nxt >>= 8;
   }
-  uint8_t *p = (byte *)&Config;
+
+  // write config
+  uint8_t *p = (uint8_t *)&Config;
   for (uint8_t i = 0; i < sizeof(struct cfg); ++i)
   {
     summ <<= 2;
     summ += p[i];
     EEPROM.write(startWrite++, p[i]);
   }
-  summ++; // To avoid empty records
+
+  summ++; // avoid empty
   EEPROM.write(wAddr + record_size - 1, summ);
 
   rAddr = wAddr;
   wAddr += record_size;
-  if (wAddr > EEPROM.length())
+
+  if (wAddr >= EEPROM.length())
     wAddr = 0;
-  nextRecID++; // Get ready to write next record
+
+  nextRecID++;
+
+  EEPROM.commit(); // WAJIB ESP32
+
   return true;
 }
 
+// ================= LOAD =================
 bool CONFIG::load(void)
 {
   bool is_valid = readRecord(rAddr, nextRecID);
-  nextRecID++; // Get ready to read next record
+  nextRecID++;
   return is_valid;
 }
 
+// ================= READ =================
 bool CONFIG::readRecord(uint16_t addr, uint32_t &recID)
 {
-  uint8_t Buff[record_size];
+  uint8_t Buff[64]; // max aman
 
   for (uint8_t i = 0; i < record_size; ++i)
     Buff[i] = EEPROM.read(addr + i);
 
   uint8_t summ = 0;
-  for (byte i = 0; i < sizeof(struct cfg) + 4; ++i)
+
+  for (uint8_t i = 0; i < sizeof(struct cfg) + 4; ++i)
   {
     summ <<= 2;
     summ += Buff[i];
   }
-  summ++; // To avoid empty fields
+
+  summ++;
+
   if (summ == Buff[record_size - 1])
-  { // Checksumm is correct
+  {
     uint32_t ts = 0;
-    for (char i = 3; i >= 0; --i)
+
+    for (int i = 3; i >= 0; --i)
     {
       ts <<= 8;
-      ts |= Buff[byte(i)];
+      ts |= Buff[i];
     }
+
     recID = ts;
     memcpy(&Config, &Buff[4], sizeof(struct cfg));
+
     return true;
   }
+
   return false;
 }
 
+// ================= CHANNEL =================
 void CONFIG::getChannel(uint8_t ch, uint16_t &temp, uint8_t &fan)
 {
   if (ch < 3)
   {
     temp = Config.ch_temp[ch];
-    fan = Config.ch_fan[ch];
+    fan  = Config.ch_fan[ch];
   }
 }
 
@@ -269,8 +300,8 @@ void CONFIG::setChannel(uint8_t ch, uint16_t temp, uint8_t fan)
   if (ch < 3)
   {
     Config.ch_temp[ch] = temp;
-    Config.ch_fan[ch] = fan;
-    save();
+    Config.ch_fan[ch]  = fan;
+    save(); // auto save
   }
 }
 
@@ -2370,7 +2401,9 @@ void rotEncChange(void)
 void setup()
 {
   Serial.begin(115200);
+  EEPROM.begin(512);
   disp.init();
+
 
   disp.msgLoading();
 
