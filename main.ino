@@ -43,7 +43,11 @@ const uint8_t REED_SW_PIN = 18;  // Reed switch pin
 const uint8_t BUZZER_PIN = 19;   // Buzzer pin
 const bool BUZZER_ACTIVE = true; // Active buzzer beeps when +5v supplied to it
 
-// channel pin
+/*channels pins
+ * The channels are used to save preset temperature and fan speed values. When the user presses the button of the channel, the preset temperature and fan speed values will be applied. The channel buttons are connected to the ground, so they are active LOW. Do not change these pin numbers!
+ * long press the channel button to save the current temperature and fan speed settings into the channel
+ * short press the button of the channel to load  & apply the preset temperature and fan speed values of the channel
+ * notes : you must be save the preset values into the channel before using it, otherwise the channel will not work
 const uint8_t CH1_pin = 27;
 const uint8_t CH2_pin = 26;
 const uint8_t CH3_pin = 25;
