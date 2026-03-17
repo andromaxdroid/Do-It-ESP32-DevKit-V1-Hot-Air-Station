@@ -34,8 +34,8 @@ const uint8_t FAN_GUN_PIN = 33;  // Hot gun fan management pin. Do not change!
 const uint8_t TEMP_GUN_PIN = 35; // Hot gun temperature checking pin
 
 // rotary encoder
-const uint8_t R_MAIN_PIN = 13; // Rotary encoder main pin. Do not change! (clk pin)
-const uint8_t R_SECD_PIN = 14; // Rotary encoder secondary pin (dt pin)
+const uint8_t R_MAIN_PIN = 13; // Rotary encoder main pin. Do not change! (dt pin)
+const uint8_t R_SECD_PIN = 14; // Rotary encoder secondary pin (clk pin)
 const uint8_t R_BUTN_PIN = 12; // Rotary encoder button pin (switch pin)
 
 const uint8_t REED_SW_PIN = 18;  // Reed switch pin
