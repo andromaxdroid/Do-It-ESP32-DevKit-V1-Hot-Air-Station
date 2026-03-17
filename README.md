@@ -18,10 +18,10 @@ A DIY hot air station controller powered by the **ESP32 DevKit V1**, designed fo
 ## 🛠️ Hardware Requirements
 
 - **Microcontroller**: ESP32 DevKit V1  
-- **Temperature Sensor**: Thermocouple / Analog sensor  
+- **Temperature Sensor**: Thermocouple / Analog sensor mcp602 etc 
 - **Heating Element**: Hot air gun heater  
 - **Fan**: DC fan (PWM controllable)  
-- **Display**: LCD 16x2 (I2C recommended)  
+- **Display**: LCD 16x2 I2C
 - **Input**: Rotary encoder / buttons  
 - **Power Circuit**: TRIAC + zero-cross detection (for AC heater control)
 
